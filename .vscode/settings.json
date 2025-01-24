@@ -1,0 +1,14 @@
+{
+    "files.exclude": {
+        "dist": false
+    },
+    "search.exclude": {
+        "dist": true
+    },
+    "typescript.tsc.autoDetect": "off",
+    "cSpell.words": [
+    ],
+    "cSpell.ignoreWords": [
+        "cctor"
+    ]
+}

@@ -1,0 +1,58 @@
+{
+    "name": "csharp-parsing",
+    "publisher": "spencerjames",
+    "version": "0.0.1",
+    "description": "CSharp Parsing",
+    "displayName": "CSharp Parsing",
+    "shortName": "CSharp Parsing",
+    "author": {
+        "name": "Spencer James",
+        "email": "apps@swsj.me",
+        "url": "https://swsj.me/"
+    },
+    "homepage": "https://github.com/kokoabim/vscode-csharp-parsing/README.md",
+    "bugs": {
+        "url": "https://github.com/kokoabim/vscode-csharp-parsing/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kokoabim/vscode-csharp-parsing"
+    },
+    "license": "LICENSE.md",
+    "icon": "icon/icon-512px.png",
+    "engines": {
+        "vscode": "^1.96.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "keywords": [],
+    "activationEvents": [],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "swsj.csharp-parsing.csharp-file-symbols",
+                "title": "CSharp File Symbols"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm install && npm run compile && npm prune --omit=dev",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.10",
+        "@types/vscode": "^1.96.0",
+        "@typescript-eslint/eslint-plugin": "^8.21.0",
+        "@typescript-eslint/parser": "^8.21.0",
+        "@vscode/test-cli": "^0.0.10",
+        "@vscode/test-electron": "^2.4.1",
+        "eslint": "^9.19.0",
+        "typescript": "^5.7.3"
+    }
+}

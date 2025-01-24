@@ -1,0 +1,5 @@
+**/.DS_Store
+.vscode-test/
+dist/
+node_modules/
+releases/
