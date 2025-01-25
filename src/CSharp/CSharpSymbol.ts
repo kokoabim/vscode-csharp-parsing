@@ -9,7 +9,7 @@ export class CSharpSymbol {
     footerRange: vscode.Range | undefined;
     header: string | undefined;
     headerRange!: vscode.Range;
-    keywords: string | undefined;
+    keywords: string[] | undefined;
     name!: string;
     namespace: string | undefined;
     parent: vscode.DocumentSymbol | undefined;
@@ -19,6 +19,8 @@ export class CSharpSymbol {
     typeName!: string;
 
     get endPosition() { return this.footerRange?.end || this.textRange?.end; }
+    get isPublic() { return this.keywords?.includes("public") || false; }
+    get isStatic() { return this.keywords?.includes("static") || false; }
 
     static fixEventSymbolHeaderAndText(textDocument: vscode.TextDocument, symbol: CSharpSymbol): void {
         if (symbol.type !== CSharpSymbolType.event) return;
@@ -221,8 +223,8 @@ export class CSharpSymbol {
             case CSharpSymbolType.primaryConstructor:
             case CSharpSymbolType.staticConstructor:
                 symbol = new CSharpConstructor();
-                (<CSharpConstructor>symbol).isPrimary = type === CSharpSymbolType.primaryConstructor;
-                (<CSharpConstructor>symbol).isStatic = type === CSharpSymbolType.staticConstructor;
+                (<CSharpConstructor>symbol).isPrimaryConstructor = type === CSharpSymbolType.primaryConstructor;
+                (<CSharpConstructor>symbol).isStaticConstructor = type === CSharpSymbolType.staticConstructor;
                 break;
 
             case CSharpSymbolType.delegate:
@@ -385,8 +387,8 @@ export class CSharpSymbol {
         return possiblyBothMatch ? [possiblyBothMatch.groups?.implementations, possiblyBothMatch.groups?.constraints] : [undefined, undefined];
     }
 
-    static parseKeywords(symbol: CSharpSymbol): string | undefined {
-        return CSharpMatch.getValue(symbol.text, CSharpMatchPatterns.keywords)?.trim();
+    static parseKeywords(symbol: CSharpSymbol): string[] | undefined {
+        return CSharpMatch.getValue(symbol.text, CSharpMatchPatterns.keywords)?.trim().split(" ").map(k => k.trim());
     }
 
     static parseName(documentSymbol: vscode.DocumentSymbol, type: CSharpSymbolType): string {
@@ -598,8 +600,8 @@ export class CSharpConstant extends CSharpSymbol {
 }
 
 export class CSharpConstructor extends CSharpSymbol {
-    isPrimary: boolean = false;
-    isStatic: boolean = false;
+    isPrimaryConstructor: boolean = false;
+    isStaticConstructor: boolean = false;
 }
 
 export class CSharpDelegate extends CSharpParamSymbol {
