@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { CSharpSymbol } from './CSharpSymbol';
 import { CSharpMatchPatterns } from './CSharpMatchPatterns';
+import { CSharpSymbol } from './CSharpSymbol';
 
 export class CSharpFile {
     usings: CSharpUsing[] = [];
