@@ -36,6 +36,7 @@ export class CSharpParsingVSCodeExtension extends VSCodeExtension {
             }
 
             console.log(`\n[project-file] Name: ${projectFile.name} • AssemblyName: ${projectFile.assemblyName} • TargetFramework: ${projectFile.targetFramework} • DefaultNamespace: ${projectFile.defaultNamespace}`);
+
             const csharpFileUris = await projectFile.getCSharpFileUris();
             console.log(`\n[csharp-files] Count: ${csharpFileUris.length}`);
             csharpFileUris.forEach(uri => console.log(uri.fsPath));
