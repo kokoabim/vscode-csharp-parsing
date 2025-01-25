@@ -313,7 +313,7 @@ export class CSharpSymbol {
         if (symbol instanceof CSharpObject) {
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
             symbol.implements = implementations;
-            symbol.constraints = constraints;
+            symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
 
             symbol.members = CSharpSymbol.parseSiblings(textDocument, documentSymbol.children, documentSymbol, symbol, ++depth);
         }
@@ -331,10 +331,10 @@ export class CSharpSymbol {
         if (symbol instanceof CSharpMethod) {
             // eslint-disable-next-line no-unused-vars
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
-            symbol.constraints = constraints;
+            symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
         }
 
-        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol instanceof CSharpParamSymbol && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpEnum) && symbol.implements ? ` • implements: ${symbol.implements}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpMethod) && symbol.constraints ? ` • constraints: ${symbol.constraints}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
+        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol instanceof CSharpParamSymbol && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpEnum) && symbol.implements ? ` • implements: ${symbol.implements}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpMethod) && symbol.constraints ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
 
         return symbol;
     }
@@ -697,7 +697,7 @@ export class CSharpSymbol {
 }
 
 export class CSharpObject extends CSharpSymbol {
-    constraints: string | undefined;
+    constraints: string[] = [];
     implements: string | undefined;
     members: CSharpSymbol[] = [];
 }
@@ -740,7 +740,7 @@ export class CSharpInterface extends CSharpObject {
 }
 
 export class CSharpMethod extends CSharpParamSymbol {
-    constraints: string | undefined;
+    constraints: string[] = [];
 }
 
 export class CSharpOperator extends CSharpParamSymbol {
