@@ -3,8 +3,8 @@ import { CSharpMatchPatterns } from './CSharpMatchPatterns';
 import { CSharpSymbol } from './CSharpSymbol';
 
 export class CSharpFile {
-    usings: CSharpUsing[] = [];
     members: CSharpSymbol[] = [];
+    usings: CSharpUsing[] = [];
 
     constructor(textDocument: vscode.TextDocument, documentSymbols: vscode.DocumentSymbol[]) {
         if (documentSymbols.length > 0) {
@@ -14,6 +14,11 @@ export class CSharpFile {
             this.usings = CSharpFile.parseUsings(textDocument, documentSymbols[0].range.start);
             this.members = CSharpSymbol.parseSiblings(textDocument, documentSymbols, undefined, 0);
         }
+    }
+
+    static async getDocumentSymbols(textDocument: vscode.TextDocument): Promise<vscode.DocumentSymbol[]> {
+        if (textDocument.languageId !== "csharp") return [];
+        return await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", textDocument.uri).then(symbols => symbols as vscode.DocumentSymbol[] || []);
     }
 
     static moveMethodsUnderParents(documentSymbols: vscode.DocumentSymbol[]): vscode.DocumentSymbol[] {
@@ -37,6 +42,11 @@ export class CSharpFile {
         }
 
         return parentSymbols;
+    }
+
+    static async parse(textDocument: vscode.TextDocument): Promise<CSharpFile> {
+        const documentSymbols = await CSharpFile.getDocumentSymbols(textDocument);
+        return new CSharpFile(textDocument, documentSymbols);
     }
 
     static parseUsings(textDocument: vscode.TextDocument, endPosition: vscode.Position): CSharpUsing[] {
