@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { CSharpMatch, CSharpMatchPatterns } from './CSharpMatchPatterns';
 import { CSharpSymbolType } from './CSharpSymbolType';
+import { CSharpKeywords } from './CSharpKeywords';
 
 export class CSharpSymbol {
+    accessModifiers: string[] = []; // TODO: implement this
     attributes: string[] = [];
     documentSymbol!: vscode.DocumentSymbol;
     footer: string | undefined;
@@ -312,7 +314,7 @@ export class CSharpSymbol {
 
         if (symbol instanceof CSharpObject) {
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
-            symbol.implements = implementations;
+            if (implementations) symbol.implements = CSharpSymbol.parseTypeNames(implementations);
             symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
 
             symbol.members = CSharpSymbol.parseSiblings(textDocument, documentSymbol.children, documentSymbol, symbol, ++depth);
@@ -321,7 +323,7 @@ export class CSharpSymbol {
         if (symbol instanceof CSharpEnum) {
             // eslint-disable-next-line no-unused-vars
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
-            symbol.implements = implementations;
+            if (implementations) symbol.implements = CSharpSymbol.parseTypeNames(implementations);
         }
 
         if (symbol instanceof CSharpParamSymbol) {
@@ -334,7 +336,7 @@ export class CSharpSymbol {
             symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
         }
 
-        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol instanceof CSharpParamSymbol && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpEnum) && symbol.implements ? ` • implements: ${symbol.implements}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpMethod) && symbol.constraints ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
+        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol instanceof CSharpParamSymbol && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpEnum) && symbol.implements.length > 0 ? ` • implements: ${symbol.implements.join(", ")}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpMethod) && symbol.constraints.length > 0 ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
 
         return symbol;
     }
@@ -495,7 +497,7 @@ export class CSharpSymbol {
             let nextHeaderOffset: vscode.Position | undefined;
 
             if (i === 0 && parentSymbol && !CSharpSymbol.isPrimaryConstructor(currentDocumentSymbol, parentSymbol.documentSymbol)) {
-                nextHeaderOffset = parentSymbol.openOfBodyPosition; // TODO: need? - CSharpSymbol.getOpenOfBody(textDocument, parentDocumentSymbol);
+                nextHeaderOffset = parentSymbol.openOfBodyPosition;
             }
             else if (i === 0 && parentDocumentSymbol && !CSharpSymbol.isPrimaryConstructor(currentDocumentSymbol, parentDocumentSymbol)) {
                 nextHeaderOffset = CSharpSymbol.getOpenOfBody(textDocument, parentDocumentSymbol);
@@ -509,7 +511,7 @@ export class CSharpSymbol {
                         nextHeaderOffset = previousDocumentSymbol.range.end;
                     }
                     else if (parentSymbol && CSharpSymbol.isPrimaryConstructor(previousDocumentSymbol, parentSymbol.documentSymbol)) {
-                        nextHeaderOffset = parentSymbol.openOfBodyPosition; // TODO: need? - CSharpSymbol.getOpenOfBody(textDocument, parentDocumentSymbol);
+                        nextHeaderOffset = parentSymbol.openOfBodyPosition;
                     }
                 }
             }
@@ -605,6 +607,31 @@ export class CSharpSymbol {
         return typeName;
     }
 
+    static parseTypeNames(text: string): string[] {
+        const typeNames: string[] = [];
+        let depth = 0;
+        let index = 0;
+
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+
+            if (c === "<" || c === "[" || c === "(") {
+                depth++;
+            }
+            else if (c === ">" || c === "]" || c === ")") {
+                depth--;
+            }
+            else if (c === "," && depth === 0) {
+                typeNames.push(text.substring(index, i).trim());
+                index = i + 1;
+            }
+        }
+
+        typeNames.push(text.substring(index).trim());
+
+        return typeNames;
+    }
+
     static processSymbolHeaderAndText(symbol: CSharpSymbol): void {
         let textUpToSymbolName = symbol.text.substring(0, symbol.textSymbolNameIndex);
         let commentMatches: RegExpExecArray[] = [];
@@ -631,8 +658,16 @@ export class CSharpSymbol {
                     symbol.attributes.push(value);
                 }
                 else if (re === CSharpMatchPatterns.keywordRegExp) {
-                    symbol.keywords.push(value.trim());
+                    const keyword = value.trim();
+
+                    symbol.keywords.push(keyword);
                     removeText = false;
+
+                    if (CSharpKeywords.accessModifiers.includes(keyword)) symbol.accessModifiers.push(keyword);
+
+                    if (keyword === "async" && symbol instanceof CSharpMethod) {
+                        (<CSharpMethod>symbol).isAsync = true;
+                    }
                 }
                 else {
                     commentMatches.push(match);
@@ -698,7 +733,7 @@ export class CSharpSymbol {
 
 export class CSharpObject extends CSharpSymbol {
     constraints: string[] = [];
-    implements: string | undefined;
+    implements: string[] = [];
     members: CSharpSymbol[] = [];
 }
 
@@ -721,7 +756,7 @@ export class CSharpDelegate extends CSharpParamSymbol {
 }
 
 export class CSharpEnum extends CSharpSymbol {
-    implements: string | undefined;
+    implements: string[] = [];
 }
 
 export class CSharpEvent extends CSharpSymbol {
@@ -740,6 +775,7 @@ export class CSharpInterface extends CSharpObject {
 }
 
 export class CSharpMethod extends CSharpParamSymbol {
+    isAsync: boolean = false;
     constraints: string[] = [];
 }
 
