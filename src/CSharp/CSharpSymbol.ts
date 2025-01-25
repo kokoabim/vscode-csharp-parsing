@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { CSharpSymbolType } from './CSharpSymbolType';
 import { CSharpMatch, CSharpMatchPatterns } from './CSharpMatchPatterns';
+import { CSharpSymbolType } from './CSharpSymbolType';
 
 export class CSharpSymbol {
     depth!: number;
