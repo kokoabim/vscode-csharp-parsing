@@ -31,7 +31,7 @@ export class CSharpParsingVSCodeExtension extends VSCodeExtension {
             const projectFiles = await CSharpProjectFile.findProjects(this.workspaceFolder!);
             const projectFile = CSharpProjectFile.projectOfTextDocument(projectFiles, textDocument);
             if (!projectFile) {
-                console.log("Failed to find project file for current document");
+                console.log(`Failed to find project file for document: ${textDocument.uri.fsPath}`);
                 return;
             }
 
