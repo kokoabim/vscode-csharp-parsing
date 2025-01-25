@@ -32,7 +32,7 @@ export enum CSharpSymbolType {
 }
 
 export namespace CSharpSymbolType {
-    export function byDocumentSymbol(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: vscode.DocumentSymbol | undefined): CSharpSymbolType {
+    export function byDocumentSymbol(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: CSharpSymbol | undefined): CSharpSymbolType {
         switch (documentSymbol.kind) {
             case vscode.SymbolKind.Class: return CSharpSymbolType.class;
             case vscode.SymbolKind.Constant: return CSharpSymbolType.constant;
@@ -52,7 +52,7 @@ export namespace CSharpSymbolType {
 
             case vscode.SymbolKind.Method:
                 if (documentSymbol.name === ".ctor") {
-                    if (parentSymbol !== undefined && CSharpSymbol.isPrimaryConstructor(documentSymbol, parentSymbol)) { return CSharpSymbolType.primaryConstructor; }
+                    if (parentSymbol && CSharpSymbol.isPrimaryConstructor(documentSymbol, parentSymbol.documentSymbol)) { return CSharpSymbolType.primaryConstructor; }
                     else { return CSharpSymbolType.constructor; }
                 }
                 else if (documentSymbol.name === "Finalize" && documentSymbol.detail.startsWith("~")) { return CSharpSymbolType.finalizer; }

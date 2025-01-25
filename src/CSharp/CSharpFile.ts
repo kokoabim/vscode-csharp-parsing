@@ -12,7 +12,7 @@ export class CSharpFile {
             documentSymbols = CSharpFile.moveMethodsUnderParents(documentSymbols);
 
             this.usings = CSharpFile.parseUsings(textDocument, documentSymbols[0].range.start);
-            this.members = CSharpSymbol.parseSiblings(textDocument, documentSymbols, undefined, 0);
+            this.members = CSharpSymbol.parseSiblings(textDocument, documentSymbols, undefined, undefined, 0);
         }
     }
 
