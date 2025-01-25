@@ -9,13 +9,14 @@ export enum CSharpSymbolType {
     using,
     namespace,
 
-    delegate,
     interface,
     class,
     struct,
-    enum,
     recordClass,
     recordStruct,
+
+    delegate,
+    enum,
 
     event,
     constant,

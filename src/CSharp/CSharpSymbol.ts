@@ -4,22 +4,33 @@ import { CSharpSymbolType } from './CSharpSymbolType';
 import { CSharpKeywords } from './CSharpKeywords';
 
 export class CSharpSymbol {
-    accessModifiers: string[] = []; // TODO: implement this
+    accessModifiers: string[] = [];
     attributes: string[] = [];
+    constraints: string[] = [];
     documentSymbol!: vscode.DocumentSymbol;
     footer: string | undefined;
     footerRange: vscode.Range | undefined;
     header: string | undefined;
     headerRange!: vscode.Range;
+    implements: string[] = [];
+    isAsync: boolean = false;
+    isExplicitOperator: boolean = false;
+    isImplicitOperator: boolean = false;
+    isPrimaryConstructor: boolean = false;
+    isRecordClass: boolean = false;
+    isRecordStruct: boolean = false;
+    isStaticConstructor: boolean = false;
     keywords: string[] = [];
+    members: CSharpSymbol[] = [];
     name!: string;
     namespace: string | undefined;
+    parameters: string | undefined;
     parent: CSharpSymbol | undefined;
     returnType: string | undefined;
+    symbolType!: CSharpSymbolType;
     text!: string;
     textRange!: vscode.Range;
     typeName!: string;
-    symbolType!: CSharpSymbolType;
 
     private depth = 0;
     private eol = "\n";
@@ -215,85 +226,48 @@ export class CSharpSymbol {
         return documentSymbols.sort((a, b) => a.range.start.isBefore(b.range.start) ? -1 : 1);
     }
 
+    static isObjectSymbol(symbol: CSharpSymbol): boolean {
+        return symbol.symbolType === CSharpSymbolType.class
+            || symbol.symbolType === CSharpSymbolType.interface
+            || symbol.symbolType === CSharpSymbolType.struct
+            || symbol.symbolType === CSharpSymbolType.recordClass
+            || symbol.symbolType === CSharpSymbolType.recordStruct;
+    }
+
+    static canHaveParameters(symbol: CSharpSymbol): boolean {
+        return symbol.symbolType === CSharpSymbolType.constructor
+            || symbol.symbolType === CSharpSymbolType.method
+            || symbol.symbolType === CSharpSymbolType.operator
+            || symbol.symbolType === CSharpSymbolType.delegate
+            || symbol.symbolType === CSharpSymbolType.indexer;
+    }
+
     static parse(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: CSharpSymbol | undefined, depth: number, startOffset: vscode.Position | undefined, isLastSymbol: boolean): CSharpSymbol | undefined {
         const padding = depth > 0 ? "  ".repeat(depth) : "";
 
         console.log(`\n${padding}> [parse-symbol] ${vscode.SymbolKind[documentSymbol.kind]}: ${documentSymbol.name}`);
 
-        let symbol: CSharpSymbol;
-
         const type = CSharpSymbolType.byDocumentSymbol(textDocument, documentSymbol, parentSymbol);
         if (type === CSharpSymbolType.none) return undefined;
 
+        let symbol = new CSharpSymbol();
+
         switch (type) {
-            case CSharpSymbolType.class:
-                symbol = new CSharpClass();
-                break;
-
-            case CSharpSymbolType.constant:
-                symbol = new CSharpConstant();
-                break;
-
-            case CSharpSymbolType.constructor:
             case CSharpSymbolType.primaryConstructor:
+                symbol.isPrimaryConstructor = true;
+                break;
+
             case CSharpSymbolType.staticConstructor:
-                symbol = new CSharpConstructor();
-                (<CSharpConstructor>symbol).isPrimary = type === CSharpSymbolType.primaryConstructor;
-                (<CSharpConstructor>symbol).isStatic = type === CSharpSymbolType.staticConstructor;
-                break;
-
-            case CSharpSymbolType.delegate:
-                symbol = new CSharpDelegate();
-                break;
-
-            case CSharpSymbolType.enum:
-                symbol = new CSharpEnum();
-                break;
-
-            case CSharpSymbolType.event:
-                symbol = new CSharpEvent();
-                break;
-
-            case CSharpSymbolType.field:
-                symbol = new CSharpField();
-                break;
-
-            case CSharpSymbolType.indexer:
-                symbol = new CSharpIndexer();
-                break;
-
-            case CSharpSymbolType.interface:
-                symbol = new CSharpInterface();
-                break;
-
-            case CSharpSymbolType.method:
-                symbol = new CSharpMethod();
-                break;
-
-            case CSharpSymbolType.operator:
-                symbol = new CSharpOperator();
-                break;
-
-            case CSharpSymbolType.property:
-                symbol = new CSharpProperty();
+                symbol.isStaticConstructor = true;
                 break;
 
             case CSharpSymbolType.recordClass:
+                symbol.isRecordClass = true;
+                break;
+
             case CSharpSymbolType.recordStruct:
-                symbol = new CSharpRecord();
-                (<CSharpRecord>symbol).isClass = type === CSharpSymbolType.recordClass;
-                (<CSharpRecord>symbol).isStruct = type === CSharpSymbolType.recordStruct;
+                symbol.isRecordStruct = true;
                 break;
-
-            case CSharpSymbolType.struct:
-                symbol = new CSharpStruct();
-                break;
-
-            case CSharpSymbolType.finalizer:
-                symbol = new CSharpFinalizer();
-                break;
-
-            default: throw new Error(`Unsupported symbol kind or type: ${vscode.SymbolKind[documentSymbol.kind]} (${documentSymbol.kind}), ${CSharpSymbolType[type]} (${type})`);
         }
 
         symbol.eol = textDocument.eol === vscode.EndOfLine.LF ? "\n" : "\r\n";
@@ -312,7 +286,7 @@ export class CSharpSymbol {
         CSharpSymbol.processSymbolHeaderAndText(symbol);
         symbol.footer = CSharpSymbol.parseFooter(textDocument, symbol, isLastSymbol);
 
-        if (symbol instanceof CSharpObject) {
+        if (CSharpSymbol.isObjectSymbol(symbol)) {
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
             if (implementations) symbol.implements = CSharpSymbol.parseTypeNames(implementations);
             symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
@@ -320,23 +294,23 @@ export class CSharpSymbol {
             symbol.members = CSharpSymbol.parseSiblings(textDocument, documentSymbol.children, documentSymbol, symbol, ++depth);
         }
 
-        if (symbol instanceof CSharpEnum) {
+        if (symbol.symbolType === CSharpSymbolType.enum) {
             // eslint-disable-next-line no-unused-vars
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
             if (implementations) symbol.implements = CSharpSymbol.parseTypeNames(implementations);
         }
 
-        if (symbol instanceof CSharpParamSymbol) {
+        if (CSharpSymbol.canHaveParameters(symbol)) {
             symbol.parameters = CSharpSymbol.parseParameters(textDocument, documentSymbol);
         }
 
-        if (symbol instanceof CSharpMethod) {
+        if (symbol.symbolType === CSharpSymbolType.method) {
             // eslint-disable-next-line no-unused-vars
             const [implementations, constraints] = CSharpSymbol.parseImplementationsAndOrConstraints(textDocument, documentSymbol, symbol);
             symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
         }
 
-        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol instanceof CSharpParamSymbol && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpEnum) && symbol.implements.length > 0 ? ` • implements: ${symbol.implements.join(", ")}` : ""}${(symbol instanceof CSharpObject || symbol instanceof CSharpMethod) && symbol.constraints.length > 0 ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
+        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${CSharpSymbol.canHaveParameters(symbol) && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.enum) && symbol.implements.length > 0 ? ` • implements: ${symbol.implements.join(", ")}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.method) && symbol.constraints.length > 0 ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
 
         return symbol;
     }
@@ -665,9 +639,7 @@ export class CSharpSymbol {
 
                     if (CSharpKeywords.accessModifiers.includes(keyword)) symbol.accessModifiers.push(keyword);
 
-                    if (keyword === "async" && symbol instanceof CSharpMethod) {
-                        (<CSharpMethod>symbol).isAsync = true;
-                    }
+                    if (keyword === "async") symbol.isAsync = true;
                 }
                 else {
                     commentMatches.push(match);
@@ -702,11 +674,11 @@ export class CSharpSymbol {
             if (operatorMatch?.[1]) {
                 const operatorValue = operatorMatch[1].trim();
                 if (operatorValue === "implicit") {
-                    (<CSharpOperator>symbol).isImplicit = true;
+                    symbol.isImplicitOperator = true;
                     symbol.returnType = symbol.typeName;
                 }
                 else if (operatorValue === "explicit") {
-                    (<CSharpOperator>symbol).isExplicit = true;
+                    symbol.isExplicitOperator = true;
                     symbol.returnType = symbol.typeName;
                 }
                 else {
@@ -729,68 +701,4 @@ export class CSharpSymbol {
             symbol.header = symbol.header ? `${symbol.header}${symbol.eol}${attr}` : attr;
         }
     }
-}
-
-export class CSharpObject extends CSharpSymbol {
-    constraints: string[] = [];
-    implements: string[] = [];
-    members: CSharpSymbol[] = [];
-}
-
-export class CSharpParamSymbol extends CSharpSymbol {
-    parameters!: string;
-}
-
-export class CSharpClass extends CSharpObject {
-}
-
-export class CSharpConstant extends CSharpSymbol {
-}
-
-export class CSharpConstructor extends CSharpSymbol {
-    isPrimary: boolean = false;
-    isStatic: boolean = false;
-}
-
-export class CSharpDelegate extends CSharpParamSymbol {
-}
-
-export class CSharpEnum extends CSharpSymbol {
-    implements: string[] = [];
-}
-
-export class CSharpEvent extends CSharpSymbol {
-}
-
-export class CSharpField extends CSharpSymbol {
-}
-
-export class CSharpFinalizer extends CSharpSymbol {
-}
-
-export class CSharpIndexer extends CSharpSymbol {
-}
-
-export class CSharpInterface extends CSharpObject {
-}
-
-export class CSharpMethod extends CSharpParamSymbol {
-    isAsync: boolean = false;
-    constraints: string[] = [];
-}
-
-export class CSharpOperator extends CSharpParamSymbol {
-    isExplicit: boolean = false;
-    isImplicit: boolean = false;
-}
-
-export class CSharpProperty extends CSharpSymbol {
-}
-
-export class CSharpRecord extends CSharpObject {
-    isClass: boolean = false;
-    isStruct: boolean = false;
-}
-
-export class CSharpStruct extends CSharpObject {
 }
