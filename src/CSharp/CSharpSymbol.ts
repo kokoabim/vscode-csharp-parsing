@@ -45,6 +45,25 @@ export class CSharpSymbol {
 
     private get endPosition() { return this.footerRange?.end || this.textRange?.end; }
 
+    static isDelegate(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol): boolean {
+        return documentSymbol.kind === vscode.SymbolKind.Method
+            && CSharpMatch.isMatch(textDocument.getText(new vscode.Range(documentSymbol.range.start, documentSymbol.selectionRange.start)), CSharpMatchPatterns.delegateKeyword);
+    }
+
+    static isEventMethod(documentSymbol: vscode.DocumentSymbol): boolean {
+        return documentSymbol.kind === vscode.SymbolKind.Method
+            && ((documentSymbol.name.startsWith("add_") && documentSymbol.detail.endsWith(".add"))
+                || (documentSymbol.name.startsWith("remove_") && documentSymbol.detail.endsWith(".remove")));
+    }
+
+    static isPrimaryConstructor(documentSymbol: vscode.DocumentSymbol, parentSymbol: vscode.DocumentSymbol): boolean {
+        return documentSymbol.kind === vscode.SymbolKind.Method && documentSymbol.name === ".ctor" && parentSymbol.selectionRange.start.isEqual(documentSymbol.selectionRange.start);
+    }
+
+    static orderByRange(documentSymbols: vscode.DocumentSymbol[]): vscode.DocumentSymbol[] {
+        return documentSymbols.sort((a, b) => a.range.start.isBefore(b.range.start) ? -1 : 1);
+    }
+
     static parseSiblings(textDocument: vscode.TextDocument, documentSymbols: vscode.DocumentSymbol[], parentDocumentSymbol: vscode.DocumentSymbol | undefined, parentSymbol: CSharpSymbol | undefined, depth: number): CSharpSymbol[] {
         if (documentSymbols.length === 0) return [];
 
@@ -87,6 +106,10 @@ export class CSharpSymbol {
         }
 
         return symbols;
+    }
+
+    toString(): string {
+        throw new Error("Method not implemented.");
     }
 
     private static canHaveParameters(symbol: CSharpSymbol): boolean {
@@ -238,10 +261,6 @@ export class CSharpSymbol {
             || symbol.symbolType === CSharpSymbolType.recordStruct;
     }
 
-    private static isPrimaryConstructor(documentSymbol: vscode.DocumentSymbol, parentSymbol: vscode.DocumentSymbol): boolean {
-        return documentSymbol.kind === vscode.SymbolKind.Method && documentSymbol.name === ".ctor" && parentSymbol.selectionRange.start.isEqual(documentSymbol.selectionRange.start);
-    }
-
     private static movePosition(textDocument: vscode.TextDocument, position: vscode.Position, offset: number): vscode.Position {
         if (offset === 0) return position;
 
@@ -273,10 +292,6 @@ export class CSharpSymbol {
         return position;
     }
 
-    private static orderByRange(documentSymbols: vscode.DocumentSymbol[]): vscode.DocumentSymbol[] {
-        return documentSymbols.sort((a, b) => a.range.start.isBefore(b.range.start) ? -1 : 1);
-    }
-
     private static parse(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: CSharpSymbol | undefined, depth: number, startOffset: vscode.Position | undefined, isLastSymbol: boolean): CSharpSymbol | undefined {
         const padding = depth > 0 ? "  ".repeat(depth) : "";
 
@@ -288,20 +303,69 @@ export class CSharpSymbol {
         let symbol = new CSharpSymbol();
 
         switch (type) {
+            case CSharpSymbolType.constant:
+            case CSharpSymbolType.field:
+                symbol.accessModifier = "private";
+                break;
+
+            case CSharpSymbolType.property:
+            case CSharpSymbolType.indexer:
+            case CSharpSymbolType.event:
+            case CSharpSymbolType.method:
+                symbol.accessModifier = parentSymbol?.symbolType === CSharpSymbolType.interface ? "public" : "private";
+                break;
+
+            case CSharpSymbolType.constructor:
+                symbol.accessModifier = "private";
+                break;
+
             case CSharpSymbolType.primaryConstructor:
                 symbol.isPrimaryConstructor = true;
+                symbol.accessModifier = parentSymbol!.accessModifier;
                 break;
 
             case CSharpSymbolType.staticConstructor:
                 symbol.isStaticConstructor = true;
+                symbol.accessModifier = parentSymbol!.accessModifier;
                 break;
 
             case CSharpSymbolType.recordClass:
                 symbol.isRecordClass = true;
+                symbol.accessModifier = parentSymbol ? "private" : "internal";
                 break;
 
             case CSharpSymbolType.recordStruct:
                 symbol.isRecordStruct = true;
+                symbol.accessModifier = parentSymbol ? "private" : "internal";
+                break;
+
+            case CSharpSymbolType.class:
+            case CSharpSymbolType.struct:
+                symbol.accessModifier = parentSymbol ? "private" : "internal";
+                break;
+
+            case CSharpSymbolType.interface:
+                symbol.accessModifier = "internal";
+                break;
+
+            case CSharpSymbolType.enum:
+                symbol.accessModifier = parentSymbol ? "private" : "internal";
+                break;
+
+            case CSharpSymbolType.delegate:
+                symbol.accessModifier = parentSymbol ? "private" : "internal";
+                break;
+
+            case CSharpSymbolType.finalizer:
+                // do not set accessModifier for finalizer
+                break;
+
+            case CSharpSymbolType.operator:
+                symbol.accessModifier = "private";
+                break;
+
+            case CSharpSymbolType.namespace:
+                symbol.accessModifier = "public";
                 break;
         }
 
