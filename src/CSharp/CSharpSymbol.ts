@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import { CSharpMatch, CSharpMatchPatterns } from './CSharpMatchPatterns';
 import { CSharpSymbolType } from './CSharpSymbolType';
 import { CSharpKeywords } from './CSharpKeywords';
+import { StringBuilder } from '../Utilities/StringBuilder';
 
 export class CSharpSymbol {
     accessModifier!: string;
+    accessors: { get: string | undefined, set: string | undefined, init: string | undefined } = { get: undefined, set: undefined, init: undefined };
     attributes: string[] = [];
     constraints: string[] = [];
     documentSymbol!: vscode.DocumentSymbol;
@@ -36,6 +38,14 @@ export class CSharpSymbol {
     private eol = "\n";
     private openOfBodyPosition: vscode.Position | undefined;
     private textSymbolNameIndex!: number;
+
+    get canHaveParameters(): boolean {
+        return this.symbolType === CSharpSymbolType.constructor
+            || this.symbolType === CSharpSymbolType.method
+            || this.symbolType === CSharpSymbolType.operator
+            || this.symbolType === CSharpSymbolType.delegate
+            || this.symbolType === CSharpSymbolType.indexer;
+    }
 
     get isAbstractMember() { return this.inheritanceModifiers.includes("abstract"); }
 
@@ -109,15 +119,17 @@ export class CSharpSymbol {
     }
 
     toString(): string {
-        throw new Error("Method not implemented.");
-    }
+        const sb = new StringBuilder();
 
-    private static canHaveParameters(symbol: CSharpSymbol): boolean {
-        return symbol.symbolType === CSharpSymbolType.constructor
-            || symbol.symbolType === CSharpSymbolType.method
-            || symbol.symbolType === CSharpSymbolType.operator
-            || symbol.symbolType === CSharpSymbolType.delegate
-            || symbol.symbolType === CSharpSymbolType.indexer;
+        if (this.header) sb.append(this.header).append(this.eol);
+
+        if (this.attributes.length > 0) sb.concat(this.eol, ...this.attributes).append(this.eol);
+
+        sb.append(this.text);
+
+        if (this.footer) sb.append(this.footer);
+
+        return sb.toString();
     }
 
     private static fixEventSymbolHeaderAndText(textDocument: vscode.TextDocument, symbol: CSharpSymbol): void {
@@ -399,7 +411,7 @@ export class CSharpSymbol {
             if (implementations) symbol.implements = CSharpSymbol.parseTypeNames(implementations);
         }
 
-        if (CSharpSymbol.canHaveParameters(symbol)) {
+        if (symbol.canHaveParameters) {
             symbol.parameters = CSharpSymbol.parseParameters(textDocument, documentSymbol);
         }
 
@@ -409,7 +421,7 @@ export class CSharpSymbol {
             symbol.constraints = constraints ? constraints.split("where").map(c => c.trim()) : [];
         }
 
-        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${CSharpSymbol.canHaveParameters(symbol) && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.enum) && symbol.implements.length > 0 ? ` • implements: ${symbol.implements.join(", ")}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.method) && symbol.constraints.length > 0 ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
+        console.log(`${padding}< ${CSharpSymbolType[symbol.symbolType]}: ${symbol.name} • typeName: ${symbol.typeName}${symbol.canHaveParameters && symbol.parameters ? ` • params: ${symbol.parameters}` : ""}${symbol.returnType ? ` • returnType: ${symbol.returnType}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.enum) && symbol.implements.length > 0 ? ` • implements: ${symbol.implements.join(", ")}` : ""}${(CSharpSymbol.isObjectSymbol(symbol) || symbol.symbolType === CSharpSymbolType.method) && symbol.constraints.length > 0 ? ` • constraints: ${symbol.constraints.join(", ")}` : ""}${symbol.namespace ? ` • namespace: ${symbol.namespace}` : ""}`);
 
         return symbol;
     }
@@ -743,6 +755,17 @@ export class CSharpSymbol {
         }
 
         symbol.text = textUpToSymbolName + symbol.text.substring(symbol.textSymbolNameIndex);
+
+        if (symbol.symbolType === CSharpSymbolType.property || symbol.symbolType === CSharpSymbolType.indexer) {
+            if (symbol.text.substring(symbol.textSymbolNameIndex + symbol.name.length).match(/^\s*=>\s*/) !== null) {
+                symbol.accessors.get = "";
+            }
+            else {
+                symbol.accessors.get = CSharpMatch.accessorAccessModifier(symbol.text, "get");
+                symbol.accessors.set = CSharpMatch.accessorAccessModifier(symbol.text, "set");
+                symbol.accessors.init = CSharpMatch.accessorAccessModifier(symbol.text, "init");
+            }
+        }
 
         commentMatches = commentMatches.sort((a, b) => a.index - b.index);
         for (const commentMatch of commentMatches) {

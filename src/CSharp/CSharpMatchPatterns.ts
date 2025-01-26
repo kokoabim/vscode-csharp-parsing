@@ -1,4 +1,11 @@
 export class CSharpMatch {
+    static accessorAccessModifier(text: string, accessor: string): string | undefined {
+        const match = text.match(`[{};]\\s*((?<access>(public|internal|protected|private)\\s+)?${accessor}\\s*(;|{|(=>)))`);
+        return match === null
+            ? undefined // doesn't exist
+            : match.groups?.access?.trim() ?? ""; // empty string == exists but no access modifier
+    }
+
     static getValue(target: string, pattern: string): string | undefined {
         const match = target.match(pattern);
         return match?.groups?.value || undefined;
