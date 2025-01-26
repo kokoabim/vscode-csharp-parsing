@@ -4,7 +4,7 @@ import { CSharpSymbolType } from './CSharpSymbolType';
 import { CSharpKeywords } from './CSharpKeywords';
 
 export class CSharpSymbol {
-    accessModifiers: string[] = [];
+    accessModifier!: string;
     attributes: string[] = [];
     constraints: string[] = [];
     documentSymbol!: vscode.DocumentSymbol;
@@ -13,7 +13,7 @@ export class CSharpSymbol {
     header: string | undefined;
     headerRange!: vscode.Range;
     implements: string[] = [];
-    isAsync: boolean = false;
+    inheritanceModifiers: string[] = [];
     isExplicitOperator: boolean = false;
     isImplicitOperator: boolean = false;
     isPrimaryConstructor: boolean = false;
@@ -37,11 +37,21 @@ export class CSharpSymbol {
     private openOfBodyPosition: vscode.Position | undefined;
     private textSymbolNameIndex!: number;
 
+    get isAbstractMember() { return this.inheritanceModifiers.includes("abstract"); }
+
+    get isPublicMember() { return this.accessModifier === "public"; }
+
+    get isStaticMember() { return this.keywords.includes("static"); }
+
     private get endPosition() { return this.footerRange?.end || this.textRange?.end; }
 
-    get isPublicMember() { return this.keywords.includes("public") || false; }
-
-    get isStaticMember() { return this.keywords.includes("static") || false; }
+    static canHaveParameters(symbol: CSharpSymbol): boolean {
+        return symbol.symbolType === CSharpSymbolType.constructor
+            || symbol.symbolType === CSharpSymbolType.method
+            || symbol.symbolType === CSharpSymbolType.operator
+            || symbol.symbolType === CSharpSymbolType.delegate
+            || symbol.symbolType === CSharpSymbolType.indexer;
+    }
 
     static fixEventSymbolHeaderAndText(textDocument: vscode.TextDocument, symbol: CSharpSymbol): void {
         if (symbol.symbolType !== CSharpSymbolType.event) return;
@@ -187,6 +197,14 @@ export class CSharpSymbol {
                 || (documentSymbol.name.startsWith("remove_") && documentSymbol.detail.endsWith(".remove")));
     }
 
+    static isObjectSymbol(symbol: CSharpSymbol): boolean {
+        return symbol.symbolType === CSharpSymbolType.class
+            || symbol.symbolType === CSharpSymbolType.interface
+            || symbol.symbolType === CSharpSymbolType.struct
+            || symbol.symbolType === CSharpSymbolType.recordClass
+            || symbol.symbolType === CSharpSymbolType.recordStruct;
+    }
+
     static isPrimaryConstructor(documentSymbol: vscode.DocumentSymbol, parentSymbol: vscode.DocumentSymbol): boolean {
         return documentSymbol.kind === vscode.SymbolKind.Method && documentSymbol.name === ".ctor" && parentSymbol.selectionRange.start.isEqual(documentSymbol.selectionRange.start);
     }
@@ -224,22 +242,6 @@ export class CSharpSymbol {
 
     static orderByRange(documentSymbols: vscode.DocumentSymbol[]): vscode.DocumentSymbol[] {
         return documentSymbols.sort((a, b) => a.range.start.isBefore(b.range.start) ? -1 : 1);
-    }
-
-    static isObjectSymbol(symbol: CSharpSymbol): boolean {
-        return symbol.symbolType === CSharpSymbolType.class
-            || symbol.symbolType === CSharpSymbolType.interface
-            || symbol.symbolType === CSharpSymbolType.struct
-            || symbol.symbolType === CSharpSymbolType.recordClass
-            || symbol.symbolType === CSharpSymbolType.recordStruct;
-    }
-
-    static canHaveParameters(symbol: CSharpSymbol): boolean {
-        return symbol.symbolType === CSharpSymbolType.constructor
-            || symbol.symbolType === CSharpSymbolType.method
-            || symbol.symbolType === CSharpSymbolType.operator
-            || symbol.symbolType === CSharpSymbolType.delegate
-            || symbol.symbolType === CSharpSymbolType.indexer;
     }
 
     static parse(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: CSharpSymbol | undefined, depth: number, startOffset: vscode.Position | undefined, isLastSymbol: boolean): CSharpSymbol | undefined {
@@ -637,9 +639,9 @@ export class CSharpSymbol {
                     symbol.keywords.push(keyword);
                     removeText = false;
 
-                    if (CSharpKeywords.accessModifiers.includes(keyword)) symbol.accessModifiers.push(keyword);
+                    if (CSharpKeywords.accessModifiers.includes(keyword)) symbol.accessModifier = keyword;
 
-                    if (keyword === "async") symbol.isAsync = true;
+                    if (CSharpKeywords.isInheritanceModifier(keyword)) symbol.inheritanceModifiers.push(keyword);
                 }
                 else {
                     commentMatches.push(match);
