@@ -3,7 +3,7 @@
 set -eo pipefail
 
 script_name="${0##*/}"
-script_options="hy"
+script_options="hiy"
 
 function usage() {
     end "Clean project by removing all build files and directories
@@ -12,6 +12,7 @@ Use: $script_name [-$script_options]
 
 Options:
  -h  View this help
+ -i  Perform NPM install after cleaning
  -y  Confirm yes to run
 "
 }
@@ -39,11 +40,13 @@ function confirm_run() {
     [[ $REPLY =~ ^[Yy]$ ]] || end
 }
 
+npm_install=0
 yes=0
 
 while getopts "$script_options" OPTION; do
     case "$OPTION" in
     h) usage ;;
+    i) npm_install=1 ;;
     y) yes=1 ;;
     *) usage ;;
     esac
@@ -56,3 +59,9 @@ echo "Removing build files and directories..."
 rm -rf ./.vscode-test
 rm -rf ./node_modules
 rm -rf ./dist
+rm -f ./package-lock.json
+
+if [[ $npm_install == 1 ]]; then
+    echo "Installing NPM packages..."
+    npm install
+fi
