@@ -32,4 +32,5 @@ export class CSharpMatchPatterns {
     static readonly singleLineCommentRegExp = new RegExp("^(?<value>[ \\t]*//.*)$", "gm");
     static readonly symbolNameAgainstParenthesis = `(?<value>${CSharpMatchPatterns.symbolName})\\s*\\(`;
     static readonly usingDirectiveRegExp = new RegExp(`^(?<directive>\\s*(?<global>global\\s+)?using\\s+(?<static>static\\s+)?((?<alias>${CSharpMatchPatterns.symbolName})\\s*=\\s*)?(?<namespace>${CSharpMatchPatterns.namespace})\\s*;\\s*)`, "gm");
+    static readonly xmlCommentLineRegExp = new RegExp("^(?<value>[ \\t]*///.*)$", "gm");
 }

@@ -29,14 +29,15 @@ export class CSharpSymbol {
     name!: string;
     namespace: string | undefined;
     parameters: CSharpParameter[] = [];
-    parametersText: string | undefined;
     parametersRange: vscode.Range | undefined;
+    parametersText: string | undefined;
     parent: CSharpSymbol | undefined;
     returnType: string | undefined;
     symbolType!: CSharpSymbolType;
     text!: string;
     textRange!: vscode.Range;
     typeName!: string;
+    xmlComment: string | undefined;
 
     private depth = 0;
     private openOfBodyPosition: vscode.Position | undefined;
@@ -531,7 +532,7 @@ export class CSharpSymbol {
         [openOfBodyPosition, matchedValue] = CSharpSymbol.getCharacterPosition(textDocument, documentSymbol.selectionRange.end, openOfBodyValues);
         if (!openOfBodyPosition) return [undefined, undefined];
 
-        symbol.openOfBodyPosition = openOfBodyPosition;
+        symbol.openOfBodyPosition = CSharpSymbol.movePosition(textDocument, openOfBodyPosition, matchedValue!.length);
 
         [startOfInBetweenTextPosition, matchedValue] = CSharpSymbol.getCharacterPosition(textDocument, documentSymbol.selectionRange.end, startOfInBetweenTextValues, openOfBodyPosition, symbol.symbolType === CSharpSymbolType.method);
         if (!startOfInBetweenTextPosition) return [undefined, undefined];
@@ -736,6 +737,7 @@ export class CSharpSymbol {
         let totalMatchLength = 0;
 
         for (const re of [
+            CSharpMatchPatterns.xmlCommentLineRegExp,
             CSharpMatchPatterns.multiLineCommentRegExp,
             CSharpMatchPatterns.singleLineCommentRegExp,
             CSharpMatchPatterns.attributeRegExp,
@@ -764,7 +766,7 @@ export class CSharpSymbol {
 
                     if (CSharpKeywords.isInheritanceModifier(keyword)) symbol.inheritanceModifiers.push(keyword);
                 }
-                else {
+                else { // comment RegExps
                     commentMatches.push(match);
                 }
 
@@ -834,5 +836,13 @@ export class CSharpSymbol {
         for (const attr of symbol.attributes) {
             symbol.header = symbol.header ? `${symbol.header}${symbol.eol}${attr}` : attr;
         }
+
+        if (symbol.header?.includes("///")) {
+            while ((match = CSharpMatchPatterns.xmlCommentLineRegExp.exec(symbol.header)) !== null) {
+                if (match.groups?.value) symbol.xmlComment = symbol.xmlComment ? `${symbol.xmlComment}${symbol.eol}${match.groups.value.trim()}` : match.groups.value.trim();
+            }
+        }
+
+        CSharpMatchPatterns.xmlCommentLineRegExp.lastIndex = 0;
     }
 }
