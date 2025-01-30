@@ -10,6 +10,7 @@ export class CSharpSymbol {
     accessors: { get: string | undefined, set: string | undefined, init: string | undefined } = { get: undefined, set: undefined, init: undefined };
     attributes: string[] = [];
     constraints: string[] = [];
+    constraintsRange: vscode.Range | undefined;
     documentSymbol!: vscode.DocumentSymbol;
     eol = "\n";
     footer: string | undefined;
@@ -17,6 +18,7 @@ export class CSharpSymbol {
     header: string | undefined;
     headerRange!: vscode.Range;
     implements: string[] = [];
+    implementsRange: vscode.Range | undefined;
     inheritanceModifiers: string[] = [];
     isExplicitOperator: boolean = false;
     isImplicitOperator: boolean = false;
@@ -42,6 +44,11 @@ export class CSharpSymbol {
     private depth = 0;
     private openOfBodyPosition: vscode.Position | undefined;
     private textSymbolNameIndex!: number;
+
+    get afterTypeNameOrPrimaryConstructorPosition(): vscode.Position | undefined {
+        return this.members.find(m => m.symbolType === CSharpSymbolType.primaryConstructor)?.parametersRange?.end
+            ?? this.documentSymbol.selectionRange.end;
+    }
 
     get canHaveParameters(): boolean {
         return this.symbolType === CSharpSymbolType.constructor
@@ -449,7 +456,7 @@ export class CSharpSymbol {
             let children = documentSymbol.children;
 
             if (symbol.symbolType === CSharpSymbolType.recordClass) {
-                [symbol.parametersText, symbol.parametersRange] = CSharpSymbol.parseParameters(textDocument, documentSymbol);
+                [symbol.parametersText, symbol.parametersRange] = CSharpSymbol.parseParameters(textDocument, documentSymbol, symbol);
                 symbol.parameters = CSharpParameter.parseMultiple(symbol.parametersText);
 
                 children = children.filter(c => !symbol.parametersRange!.contains(c.selectionRange));
@@ -467,7 +474,7 @@ export class CSharpSymbol {
         }
 
         if (symbol.canHaveParameters) {
-            [symbol.parametersText, symbol.parametersRange] = CSharpSymbol.parseParameters(textDocument, documentSymbol);
+            [symbol.parametersText, symbol.parametersRange] = CSharpSymbol.parseParameters(textDocument, documentSymbol, symbol);
             symbol.parameters = CSharpParameter.parseMultiple(symbol.parametersText);
         }
 
@@ -537,6 +544,23 @@ export class CSharpSymbol {
         [startOfInBetweenTextPosition, matchedValue] = CSharpSymbol.getCharacterPosition(textDocument, documentSymbol.selectionRange.end, startOfInBetweenTextValues, openOfBodyPosition, symbol.symbolType === CSharpSymbolType.method);
         if (!startOfInBetweenTextPosition) return [undefined, undefined];
 
+        if (symbol.symbolType !== CSharpSymbolType.method) {
+            if (matchedValue === ":") {
+                // eslint-disable-next-line no-unused-vars
+                const [startOfConstraintsTextPosition, whereValue] = CSharpSymbol.getCharacterPosition(textDocument, startOfInBetweenTextPosition, ["where"], openOfBodyPosition, false);
+                if (startOfConstraintsTextPosition) {
+                    symbol.implementsRange = new vscode.Range(startOfInBetweenTextPosition, CSharpSymbol.movePosition(textDocument, startOfConstraintsTextPosition, -1));
+                    symbol.constraintsRange = new vscode.Range(startOfConstraintsTextPosition, CSharpSymbol.movePosition(textDocument, openOfBodyPosition, -1));
+                }
+                else {
+                    symbol.implementsRange = new vscode.Range(startOfInBetweenTextPosition, CSharpSymbol.movePosition(textDocument, openOfBodyPosition, -1));
+                }
+            }
+            else if (matchedValue === "where") {
+                symbol.constraintsRange = new vscode.Range(startOfInBetweenTextPosition, CSharpSymbol.movePosition(textDocument, openOfBodyPosition, -1));
+            }
+        }
+
         if (matchedValue !== "where") {
             startOfInBetweenTextPosition = CSharpSymbol.movePosition(textDocument, startOfInBetweenTextPosition, 1);
         }
@@ -566,6 +590,10 @@ export class CSharpSymbol {
                 const operatorToEnd = CSharpMatch.getValue(documentSymbol.detail, CSharpMatchPatterns.operatorToEnd)!;
                 name = CSharpSymbol.parseToEndOfName(operatorToEnd);
                 break;
+
+            case CSharpSymbolType.indexer:
+                name = "this";
+                break;
         }
 
         return name || documentSymbol.name;
@@ -587,7 +615,7 @@ export class CSharpSymbol {
         return namespace;
     }
 
-    private static parseParameters(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol): [string, vscode.Range] {
+    private static parseParameters(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, symbol: CSharpSymbol): [string, vscode.Range] {
         let depth = 0;
         let index = documentSymbol.selectionRange.end;
         let next = CSharpSymbol.movePosition(textDocument, index, 1);
@@ -608,6 +636,10 @@ export class CSharpSymbol {
             }
             else if (c === ">" || c === "]") {
                 depth--;
+
+                if (c === "]" && depth === 0 && symbol.symbolType === CSharpSymbolType.indexer) {
+                    break;
+                }
             }
             else if (c === ")") {
                 depth--;
@@ -699,6 +731,10 @@ export class CSharpSymbol {
             case CSharpSymbolType.operator:
                 const operatorToEnd = CSharpMatch.getValue(documentSymbol.detail, CSharpMatchPatterns.operatorToEnd)!;
                 typeName = CSharpSymbol.parseToOpenParenthesis(operatorToEnd);
+                break;
+
+            case CSharpSymbolType.indexer:
+                typeName = "this";
                 break;
         }
 

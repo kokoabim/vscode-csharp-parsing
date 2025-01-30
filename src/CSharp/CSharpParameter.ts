@@ -17,8 +17,8 @@ export class CSharpParameter {
         parametersText = parametersText.trim();
         if (parametersText === "()") return [];
 
-        if (parametersText.startsWith("(")) parametersText = parametersText.substring(1, parametersText.length - 1);
-        if (parametersText.endsWith(")")) parametersText = parametersText.substring(0, parametersText.length - 1);
+        if (parametersText.startsWith("(") || parametersText.startsWith("[")) parametersText = parametersText.substring(1, parametersText.length - 1);
+        if (parametersText.endsWith(")") || parametersText.endsWith("]")) parametersText = parametersText.substring(0, parametersText.length - 1);
 
         const parameterTexts = CSharpParameter.splitParameters(parametersText);
         return parameterTexts.map(CSharpParameter.parse);
