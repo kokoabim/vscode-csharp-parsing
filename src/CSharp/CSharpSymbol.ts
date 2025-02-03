@@ -6,7 +6,7 @@ import { StringBuilder } from '../Utilities/StringBuilder';
 import { CSharpParameter } from './CSharpParameter';
 
 export class CSharpSymbol {
-    accessModifier!: string;
+    accessModifier!: string; // ! TODO: support explicitInterfaceImplementation
     accessors: { get: string | undefined, set: string | undefined, init: string | undefined } = { get: undefined, set: undefined, init: undefined };
     attributes: string[] = [];
     constraints: string[] = [];
@@ -535,6 +535,8 @@ export class CSharpSymbol {
         let openOfBodyPosition: vscode.Position | undefined;
         let startOfInBetweenTextPosition: vscode.Position | undefined;
         let matchedValue: string | undefined;
+
+        // ! TODO: need to make sure no comments exist from end of typename<>() and start of body
 
         [openOfBodyPosition, matchedValue] = CSharpSymbol.getCharacterPosition(textDocument, documentSymbol.selectionRange.end, openOfBodyValues);
         if (!openOfBodyPosition) return [undefined, undefined];

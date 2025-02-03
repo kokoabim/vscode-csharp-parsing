@@ -35,10 +35,6 @@ export enum CSharpSymbolType {
 export namespace CSharpSymbolType {
     export function byDocumentSymbol(textDocument: vscode.TextDocument, documentSymbol: vscode.DocumentSymbol, parentSymbol: CSharpSymbol | undefined): CSharpSymbolType {
         switch (documentSymbol.kind) {
-            case vscode.SymbolKind.Class:
-                if (CSharpSymbol.isRecord(textDocument, documentSymbol)) return CSharpSymbolType.recordClass;
-                else return CSharpSymbolType.class;
-
             case vscode.SymbolKind.Constant: return CSharpSymbolType.constant;
             case vscode.SymbolKind.Constructor: return CSharpSymbolType.constructor;
             case vscode.SymbolKind.Enum: return CSharpSymbolType.enum;
@@ -48,6 +44,10 @@ export namespace CSharpSymbolType {
             case vscode.SymbolKind.Interface: return CSharpSymbolType.interface;
             case vscode.SymbolKind.Namespace: return CSharpSymbolType.namespace;
             case vscode.SymbolKind.Operator: return CSharpSymbolType.operator;
+
+            case vscode.SymbolKind.Class:
+                if (CSharpSymbol.isRecord(textDocument, documentSymbol)) return CSharpSymbolType.recordClass;
+                else return CSharpSymbolType.class;
 
             case vscode.SymbolKind.Struct:
                 if (CSharpSymbol.isRecord(textDocument, documentSymbol)) return CSharpSymbolType.recordStruct;
